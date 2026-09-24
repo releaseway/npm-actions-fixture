@@ -18,6 +18,11 @@ jobs:
           registry-url: https://registry.npmjs.org/
           scope: "@releaseway"
 
+      - name: Verify bootstrap token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: npm whoami --registry=https://registry.npmjs.org/ >/dev/null
+
       - name: Publish bootstrap version when absent
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
@@ -28,7 +33,18 @@ jobs:
           if npm view "$package" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
             echo "Bootstrap version already exists."
           else
-            npm publish --access public --tag fixture
+            set +e
+            output="$(npm publish --access public --tag fixture 2>&1)"
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then
+              message="${output//'%'/'%25'}"
+              message="${message//$'\r'/'%0D'}"
+              message="${message//$'\n'/'%0A'}"
+              echo "::error::$message"
+              exit "$status"
+            fi
+            printf '%s\n' "$output"
           fi
 
       - name: Verify bootstrap package is public
