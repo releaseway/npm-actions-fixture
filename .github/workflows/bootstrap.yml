@@ -22,15 +22,3 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
         run: npm publish --access public --tag fixture
-
-      - name: Configure Trusted Publisher
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: >-
-          npm trust github @releaseway/npm-actions-fixture
-          --file publish.yml
-          --repo releaseway/npm-actions-fixture
-          --allow-publish
-          --allow-stage-publish
-          --registry=https://registry.npmjs.org/
-          --yes
