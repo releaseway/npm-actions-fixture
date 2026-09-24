@@ -1,4 +1,4 @@
 schema: 1
 
 publish:
-  mode: direct
+  mode: stage
