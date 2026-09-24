@@ -18,7 +18,25 @@ jobs:
           registry-url: https://registry.npmjs.org/
           scope: "@releaseway"
 
-      - name: Publish bootstrap version
+      - name: Publish bootstrap version when absent
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: npm publish --access public --tag fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          package='@releaseway/npm-actions-fixture@0.0.1-fixture.0'
+          if npm view "$package" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
+            echo "Bootstrap version already exists."
+          else
+            npm publish --access public --tag fixture
+          fi
+
+      - name: Verify bootstrap package is public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          package='@releaseway/npm-actions-fixture@0.0.1-fixture.0'
+          test "$(npm view "$package" version --registry=https://registry.npmjs.org/)" = '0.0.1-fixture.0'
+          env -u NODE_AUTH_TOKEN npm view "$package" version --registry=https://registry.npmjs.org/ >/dev/null
