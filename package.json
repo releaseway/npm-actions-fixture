@@ -1,6 +1,6 @@
 {
   "name": "@releaseway/npm-actions-fixture",
-  "version": "0.0.3-fixture.0",
+  "version": "0.0.4-fixture.0",
   "description": "Integration fixture for releaseway/npm-actions. Not for production use.",
   "type": "module",
   "exports": "./index.js",
