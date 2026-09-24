@@ -1,0 +1,36 @@
+name: Bootstrap npm fixture
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org/
+          scope: "@releaseway"
+
+      - name: Publish bootstrap version
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: npm publish --access public --tag fixture
+
+      - name: Configure Trusted Publisher
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: >-
+          npm trust github @releaseway/npm-actions-fixture
+          --file publish.yml
+          --repo releaseway/npm-actions-fixture
+          --allow-publish
+          --allow-stage-publish
+          --registry=https://registry.npmjs.org/
+          --yes
