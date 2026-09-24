@@ -1,0 +1,24 @@
+name: Publish fixture
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: npm
+        uses: releaseway/npm-actions@2bc9676b998418d400e6228848f713828175bb51 # v0.1.0
+
+      - name: Summary
+        env:
+          PACKAGES: ${{ steps.npm.outputs.packages }}
+        shell: bash
+        run: |
+          echo "npm-actions fixture result: $PACKAGES" >> "$GITHUB_STEP_SUMMARY"
