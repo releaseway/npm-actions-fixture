@@ -2,6 +2,15 @@ name: Publish fixture directly
 
 on:
   workflow_dispatch:
+    inputs:
+      expected-state:
+        description: Expected npm-actions package state
+        required: true
+        default: published
+        type: choice
+        options:
+          - published
+          - existing
 
 permissions:
   contents: read
@@ -24,7 +33,17 @@ jobs:
           YAML
 
       - id: npm
-        uses: releaseway/npm-actions@47692889a1654957c0748ee23f10fc65a42a004d # v0.1.4
+        uses: releaseway/npm-actions@bea4e3875fa6423165aed3a20fcd58499c4d6b64 # v0.1.5
+
+      - name: Verify result
+        env:
+          PACKAGES: ${{ steps.npm.outputs.packages }}
+          EXPECTED_STATE: ${{ inputs.expected-state }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(jq -r .version package.json)"
+          jq -e             --arg name '@releaseway/npm-actions-fixture'             --arg version "$version"             --arg state "$EXPECTED_STATE"             'length == 1 and .[0].name == $name and .[0].version == $version and .[0].state == $state'             <<<"$PACKAGES" >/dev/null
 
       - name: Summary
         env:
