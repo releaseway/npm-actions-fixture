@@ -1,0 +1,34 @@
+name: Publish fixture directly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Opt into direct mode for this fixture run
+        shell: bash
+        run: |
+          cat > .github/npm/packages.yml <<'YAML'
+          schema: 1
+
+          publish:
+            mode: direct
+          YAML
+
+      - id: npm
+        uses: releaseway/npm-actions@47692889a1654957c0748ee23f10fc65a42a004d # v0.1.4
+
+      - name: Summary
+        env:
+          PACKAGES: ${{ steps.npm.outputs.packages }}
+        shell: bash
+        run: |
+          echo "npm-actions direct fixture result: $PACKAGES" >> "$GITHUB_STEP_SUMMARY"

@@ -18,3 +18,16 @@ The package identity is already bootstrapped. Configure npm Trusted Publishing f
 - Allowed actions: direct publish and staged publish
 
 The bootstrap credential is no longer part of the fixture flow. Revoke the npm bootstrap token and delete the `NPM_BOOTSTRAP_TOKEN` repository secret after Trusted Publishing is configured.
+
+## Direct-publish fixture
+
+The committed Releaseway policy remains staged by default. The separate `direct.yml` workflow rewrites only its checkout-local `.github/npm/packages.yml` to `mode: direct` before invoking npm-actions.
+
+Configure a second npm Trusted Publisher for:
+
+- GitHub organization: `releaseway`
+- Repository: `npm-actions-fixture`
+- Workflow filename: `direct.yml`
+- Allowed actions: enable `Allow npm publish`
+
+This direct-only connection is used to validate live OIDC publication and exact SHA-512 rerun reconciliation without weakening the stage-only `publish.yml` connection.
