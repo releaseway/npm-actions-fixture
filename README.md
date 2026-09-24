@@ -6,17 +6,15 @@ This package exists only to exercise real npm registry publication behavior, inc
 
 It is not intended for application dependencies or production use.
 
-Published versions use prerelease identifiers and the npm `fixture` dist-tag so they do not participate in a normal `latest` release line.
+Automated fixture versions use prerelease identifiers and the npm `fixture` dist-tag. The one-time bootstrap publication created `0.0.1-fixture.0`; all subsequent publication is performed by `publish.yml` through npm Trusted Publishing OIDC.
 
-## Bootstrap
+## Trusted Publishing
 
-The first package version is published by the one-time `Bootstrap npm fixture` workflow using a short-lived granular npm token stored as `NPM_BOOTSTRAP_TOKEN`.
-
-After the package exists, configure npm Trusted Publishing for:
+The package identity is already bootstrapped. Configure npm Trusted Publishing for:
 
 - GitHub organization: `releaseway`
 - Repository: `npm-actions-fixture`
 - Workflow filename: `publish.yml`
 - Allowed actions: direct publish and staged publish
 
-The bootstrap token is not used by `publish.yml` and should be revoked after Trusted Publishing is configured.
+The bootstrap credential is no longer part of the fixture flow. Revoke the npm bootstrap token and delete the `NPM_BOOTSTRAP_TOKEN` repository secret after Trusted Publishing is configured.
