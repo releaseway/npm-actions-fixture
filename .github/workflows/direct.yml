@@ -11,11 +11,11 @@ on:
       expected-state:
         description: Expected npm-actions package state
         required: true
-        default: published
+        default: already-published
         type: choice
         options:
           - published
-          - existing
+          - already-published
 
 permissions:
   contents: write
@@ -75,6 +75,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: Create or reuse immutable native Release
+        if: inputs.expected-state == 'published'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.native.outputs.tag }}
@@ -160,7 +161,7 @@ jobs:
           }
 
       - id: npm
-        uses: releaseway/npm-actions@ff945d177539ec20c57dcc66962652a7c63b2592 # native cache v2
+        uses: releaseway/npm-actions@37972052b35cc092cfdc32255b2468b394254013 # registry-first publication
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
 

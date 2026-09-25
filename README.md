@@ -2,11 +2,17 @@
 
 Permanent integration fixture for releaseway/npm-actions.
 
-This package exists only to exercise real npm registry and GitHub Release behavior, including Trusted Publishing OIDC, exact-version reconciliation, staged publishing, and native distribution.
+This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-It is not intended for application dependencies or production use.
+The committed package remains an ordinary non-native fixture. Each workflow rewrites checkout-local metadata for its requested scenario; it does not commit version changes. Both workflows pin the same reviewed npm-actions commit.
 
-The committed package remains an ordinary non-native fixture. Workflows may rewrite checkout-local metadata for an individual scenario before invoking npm-actions.
+## Result contract
+
+`already-published` means the exact version was public at initial lookup. The action skips packaging and native Release validation for that version and makes no claim that current source equals the historical artifact.
+
+`published` means a prepared candidate is live with the expected SHA-512, including an identical concurrent publication. `staged` means npm accepted a stage submission; the version is not yet confirmed public.
+
+The caller selects a new version when new fixture source or a new action runtime needs to be published. Both workflows assert the returned package name, version, and expected state.
 
 ## Trusted Publishing
 
@@ -21,35 +27,25 @@ The bootstrap credential is no longer part of the fixture flow.
 
 ## Staged fixture
 
-`publish.yml` keeps the committed Releaseway policy at its staged default and exercises the real npm staged-publishing path.
+`publish.yml` keeps the committed Releaseway policy at its staged default. It accepts `fixture-version` in the form `0.0.N-fixture.M` and `expected-state` as either `staged` or `already-published`.
+
+The defaults use `0.0.5-fixture.0` with `already-published` to exercise version lookup without a new submission. To exercise actual staged publication, choose a fresh fixture version and `expected-state=staged`. Approval remains a maintainer operation. A pending staged version is not an already-public version, and a conflicting submission is expected to fail.
 
 ## Direct native fixture
 
-`direct.yml` reuses the existing direct Trusted Publisher connection and extends that scenario to the real native runtime path. Configure npm Trusted Publishing for:
+`direct.yml` uses the direct Trusted Publisher connection. Configure npm Trusted Publishing for:
 
 - GitHub organization: `releaseway`
 - Repository: `npm-actions-fixture`
 - Workflow filename: `direct.yml`
 - Allowed action: enable `Allow npm publish`
 
-Repository release immutability must also be enabled before dispatching this workflow. The native workflow creates a draft Release, attaches the fixture asset, publishes the Release, and waits until GitHub reports that the Release is immutable and the asset has a SHA-256 digest.
+The inputs default to `fixture-version=0.0.6-native.0` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
 
-The workflow-local package version defaults to `0.0.6-native.0` and may be advanced with the `fixture-version` input. The committed `package.json` version is not changed by the workflow.
+To publish a new native fixture, select a fresh `0.0.N-native.M` version and `expected-state=published`. Repository release immutability must be enabled. The workflow creates or reuses a same-commit `native-v<version>` Release, uploads the Linux x64 asset, and waits for immutability and a SHA-256 asset digest before invoking npm-actions. The action prepares only an unpublished candidate and confirms its exact SHA-512 in the live registry.
 
-For a new native fixture version, `direct.yml` performs:
+For both native scenarios, installation uses the exact requested npm version and `--ignore-scripts`. The workflow starts with an empty native cache, executes the installed command, makes the populated cache read-only, executes again, and compares cache file snapshots. The second run checks reuse without file changes; it does not independently assert that all network access was blocked.
 
-1. rewrite checkout-local package metadata to add the native bin and requested fixture version;
-2. rewrite checkout-local Releaseway policy to direct mode with a Linux x64 GitHub Release distribution;
-3. create or reuse the same-commit `native-v<version>` immutable Release;
-4. run npm-actions through Trusted Publishing OIDC;
-5. wait for the exact version and SHA-512 artifact to become live;
-6. install that exact package version from npm using `--ignore-scripts`;
-7. execute the installed native command once to populate the v2 runtime cache;
-8. make the cache read-only and execute the command again;
-9. verify that the cache file snapshot did not change on the second invocation.
+The fixture asset is `native/fixture.sh`, packed into `npm-actions-native-fixture_linux_x64.tar.gz` at `bin/npm-actions-native-fixture`. It prints `npm-actions-native-fixture-ok` for the expected `--probe` invocation.
 
-The fixture asset itself is `native/fixture.sh`, packed into `npm-actions-native-fixture_linux_x64.tar.gz` with the executable path `bin/npm-actions-native-fixture`. It prints `npm-actions-native-fixture-ok` only for the expected `--probe` invocation.
-
-Rerunning `direct.yml` with the same version and commit and `expected-state=existing` exercises exact-artifact reconciliation without another npm mutation. A native fixture version is intentionally not reusable from a different source commit because npm-actions requires the immutable Release tag to resolve to the current `GITHUB_SHA`.
-
-Cross-platform installed-wrapper behavior is covered in the npm-actions repository by the hosted runtime/install matrix on Linux x64/arm64, macOS x64/arm64, and Windows x64/arm64. The real registry native fixture is intentionally Linux x64 so it can focus on GitHub Release provenance, npm OIDC publication, public installation, first-run download, and cache reuse.
+Cross-platform installed-wrapper behavior is covered in the npm-actions repository by the runtime/install matrix on Linux x64/arm64, macOS x64/arm64, and Windows x64/arm64. This real-registry native fixture targets Linux x64 to exercise GitHub Release provenance, npm OIDC publication, installation, first-run download, and cache reuse.

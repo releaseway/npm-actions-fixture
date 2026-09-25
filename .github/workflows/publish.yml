@@ -2,6 +2,20 @@ name: Publish fixture
 
 on:
   workflow_dispatch:
+    inputs:
+      fixture-version:
+        description: Ordinary fixture version to submit or look up
+        required: true
+        default: 0.0.5-fixture.0
+        type: string
+      expected-state:
+        description: Expected npm-actions package state
+        required: true
+        default: already-published
+        type: choice
+        options:
+          - staged
+          - already-published
 
 permissions:
   contents: read
@@ -13,8 +27,40 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Prepare ordinary fixture metadata
+        env:
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$FIXTURE_VERSION" =~ ^0\.0\.[1-9][0-9]*-fixture\.[0-9]+$ ]]; then
+            echo "fixture-version must match 0.0.N-fixture.M: $FIXTURE_VERSION" >&2
+            exit 1
+          fi
+          tmp_package="$(mktemp)"
+          jq --arg version "$FIXTURE_VERSION" '.version = $version' package.json >"$tmp_package"
+          mv "$tmp_package" package.json
+
       - id: npm
-        uses: releaseway/npm-actions@bea4e3875fa6423165aed3a20fcd58499c4d6b64 # v0.1.5
+        uses: releaseway/npm-actions@37972052b35cc092cfdc32255b2468b394254013 # registry-first publication
+
+      - name: Verify publication result
+        env:
+          PACKAGES: ${{ steps.npm.outputs.packages }}
+          EXPECTED_STATE: ${{ inputs.expected-state }}
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e \
+            --arg name '@releaseway/npm-actions-fixture' \
+            --arg version "$FIXTURE_VERSION" \
+            --arg state "$EXPECTED_STATE" \
+            'length == 1 and
+             .[0].name == $name and
+             .[0].version == $version and
+             .[0].state == $state' \
+            <<<"$PACKAGES" >/dev/null
 
       - name: Summary
         env:
