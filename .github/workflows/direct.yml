@@ -1,8 +1,13 @@
-name: Publish fixture directly
+name: Publish native fixture directly
 
 on:
   workflow_dispatch:
     inputs:
+      fixture-version:
+        description: Native fixture version to publish or reconcile
+        required: true
+        default: 0.0.6-native.0
+        type: string
       expected-state:
         description: Expected npm-actions package state
         required: true
@@ -13,7 +18,7 @@ on:
           - existing
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -22,32 +27,208 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Opt into direct mode for this fixture run
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - id: native
+        name: Prepare native fixture metadata
+        env:
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
         shell: bash
         run: |
+          set -euo pipefail
+
+          if ! [[ "$FIXTURE_VERSION" =~ ^0\.0\.[1-9][0-9]*-native\.[0-9]+$ ]]; then
+            echo "fixture-version must match 0.0.N-native.M: $FIXTURE_VERSION" >&2
+            exit 1
+          fi
+
+          tmp_package="$(mktemp)"
+          jq \
+            --arg version "$FIXTURE_VERSION" \
+            '.version = $version | .bin = {"npm-actions-native-fixture":"bin/npm-actions-native-fixture"}' \
+            package.json >"$tmp_package"
+          mv "$tmp_package" package.json
+
           cat > .github/npm/packages.yml <<'YAML'
           schema: 1
 
           publish:
             mode: direct
+
+          packages:
+            "@releaseway/npm-actions-fixture":
+              distribution:
+                type: github-release
+                tag: "native-v{version}"
+                targets:
+                  linux-x64-gnu:
+                    asset: npm-actions-native-fixture_linux_x64.tar.gz
+                    executable: bin/npm-actions-native-fixture
           YAML
 
-      - id: npm
-        uses: releaseway/npm-actions@bea4e3875fa6423165aed3a20fcd58499c4d6b64 # v0.1.5
+          {
+            echo "version=$FIXTURE_VERSION"
+            echo "tag=native-v$FIXTURE_VERSION"
+            echo "asset=npm-actions-native-fixture_linux_x64.tar.gz"
+          } >>"$GITHUB_OUTPUT"
 
-      - name: Verify result
+      - name: Create or reuse immutable native Release
         env:
-          PACKAGES: ${{ steps.npm.outputs.packages }}
-          EXPECTED_STATE: ${{ inputs.expected-state }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.native.outputs.tag }}
+          ASSET_NAME: ${{ steps.native.outputs.asset }}
         shell: bash
         run: |
           set -euo pipefail
-          version="$(jq -r .version package.json)"
-          jq -e             --arg name '@releaseway/npm-actions-fixture'             --arg version "$version"             --arg state "$EXPECTED_STATE"             'length == 1 and .[0].name == $name and .[0].version == $version and .[0].state == $state'             <<<"$PACKAGES" >/dev/null
+
+          asset="$RUNNER_TEMP/$ASSET_NAME"
+
+          build_asset() {
+            local root="$RUNNER_TEMP/native-asset"
+            rm -rf "$root"
+            mkdir -p "$root/bin"
+            cp native/fixture.sh "$root/bin/npm-actions-native-fixture"
+            chmod 0755 "$root/bin/npm-actions-native-fixture"
+            tar \
+              --sort=name \
+              --mtime='@0' \
+              --owner=0 \
+              --group=0 \
+              --numeric-owner \
+              -czf "$asset" \
+              -C "$root" \
+              bin
+          }
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            release_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
+            test "$release_commit" = "$GITHUB_SHA" || {
+              echo "existing Release tag resolves to $release_commit, expected $GITHUB_SHA" >&2
+              exit 1
+            }
+
+            is_draft="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+            if [ "$is_draft" = "true" ]; then
+              build_asset
+              if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx "$ASSET_NAME" >/dev/null; then
+                gh release upload "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY"
+              fi
+              gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+            fi
+          else
+            build_asset
+            gh release create "$RELEASE_TAG" \
+              "$asset#Linux x64 native fixture" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$RELEASE_TAG" \
+              --notes "Permanent npm-actions native integration fixture." \
+              --draft
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          fi
+
+          ready=false
+          for _ in $(seq 1 30); do
+            release_json="$(gh api \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
+
+            if jq -e \
+              --arg asset "$ASSET_NAME" \
+              '.draft == false and .immutable == true and
+               ([.assets[] |
+                 select(
+                   .name == $asset and
+                   .state == "uploaded" and
+                   (.digest | type == "string" and startswith("sha256:"))
+                 )
+               ] | length == 1)' \
+              <<<"$release_json" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          test "$ready" = "true" || {
+            echo "native Release did not become immutable with a SHA-256 asset digest" >&2
+            exit 1
+          }
+
+      - id: npm
+        uses: releaseway/npm-actions@ff945d177539ec20c57dcc66962652a7c63b2592 # native cache v2
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+
+      - name: Verify publication result
+        env:
+          PACKAGES: ${{ steps.npm.outputs.packages }}
+          EXPECTED_STATE: ${{ inputs.expected-state }}
+          FIXTURE_VERSION: ${{ steps.native.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e \
+            --arg name '@releaseway/npm-actions-fixture' \
+            --arg version "$FIXTURE_VERSION" \
+            --arg state "$EXPECTED_STATE" \
+            'length == 1 and
+             .[0].name == $name and
+             .[0].version == $version and
+             .[0].state == $state' \
+            <<<"$PACKAGES" >/dev/null
+
+      - name: Install and execute the published native CLI
+        env:
+          FIXTURE_VERSION: ${{ steps.native.outputs.version }}
+          XDG_CACHE_HOME: ${{ runner.temp }}/native-cache
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf "$XDG_CACHE_HOME"
+          consumer="$RUNNER_TEMP/native-consumer"
+          mkdir -p "$consumer"
+          printf '%s\n' '{"private":true}' >"$consumer/package.json"
+
+          npm install \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            --registry=https://registry.npmjs.org/ \
+            --prefix "$consumer" \
+            "@releaseway/npm-actions-fixture@$FIXTURE_VERSION"
+
+          bin="$consumer/node_modules/.bin/npm-actions-native-fixture"
+          first="$("$bin" --probe)"
+          test "$first" = "npm-actions-native-fixture-ok"
+
+          cache_root="$XDG_CACHE_HOME/releaseway/npm-actions/native/v2/sha256"
+          test -d "$cache_root"
+          test "$(find "$cache_root" -type f -name archive.bin | wc -l)" -eq 1
+          test "$(find "$cache_root" -type f -name metadata.json | wc -l)" -eq 1
+
+          find "$cache_root" -type f -printf '%P %s %T@\n' | LC_ALL=C sort >"$RUNNER_TEMP/cache-before.txt"
+          chmod -R a-w "$cache_root"
+
+          second="$("$bin" --probe)"
+          test "$second" = "npm-actions-native-fixture-ok"
+
+          find "$cache_root" -type f -printf '%P %s %T@\n' | LC_ALL=C sort >"$RUNNER_TEMP/cache-after.txt"
+          diff -u "$RUNNER_TEMP/cache-before.txt" "$RUNNER_TEMP/cache-after.txt"
 
       - name: Summary
         env:
           PACKAGES: ${{ steps.npm.outputs.packages }}
+          RELEASE_TAG: ${{ steps.native.outputs.tag }}
         shell: bash
         run: |
-          echo "npm-actions direct fixture result: $PACKAGES" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "npm-actions native fixture result: $PACKAGES"
+            echo "native Release: $RELEASE_TAG"
+            echo "installed CLI: first-run + read-only cache-hit verified"
+          } >>"$GITHUB_STEP_SUMMARY"
