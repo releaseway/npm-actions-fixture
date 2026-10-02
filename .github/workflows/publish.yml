@@ -8,6 +8,19 @@ on:
         required: true
         default: 0.0.5-fixture.0
         type: string
+      action-ref:
+        description: Full releaseway/npm-actions candidate SHA; stable pin by default
+        required: true
+        default: 37972052b35cc092cfdc32255b2468b394254013
+        type: string
+      version-source:
+        description: Resolve fixture version from package metadata or npm-fixture-v tag
+        required: true
+        default: package-json
+        type: choice
+        options:
+          - package-json
+          - git-tag
       expected-state:
         description: Expected npm-actions package state
         required: true
@@ -27,40 +40,43 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Prepare ordinary fixture metadata
+      - id: native
+        name: Prepare fixture identity and metadata
         env:
+          ACTION_REF: ${{ inputs.action-ref }}
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! [[ "$FIXTURE_VERSION" =~ ^0\.0\.[1-9][0-9]*-fixture\.[0-9]+$ ]]; then
-            echo "fixture-version must match 0.0.N-fixture.M: $FIXTURE_VERSION" >&2
-            exit 1
-          fi
-          tmp_package="$(mktemp)"
-          jq --arg version "$FIXTURE_VERSION" '.version = $version' package.json >"$tmp_package"
-          mv "$tmp_package" package.json
+          VERSION_SOURCE: ${{ inputs.version-source }}
+          FIXTURE_KIND: fixture
+        run: python3 scripts/prepare.py
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: releaseway/npm-actions
+          ref: ${{ inputs.action-ref }}
+          path: npm-action
+          persist-credentials: false
+
+      - name: Verify checked-out candidate identity
+        env:
+          ACTION_REF: ${{ inputs.action-ref }}
+        run: test "$(git -C npm-action rev-parse HEAD)" = "${ACTION_REF,,}"
 
       - id: npm
-        uses: releaseway/npm-actions@37972052b35cc092cfdc32255b2468b394254013 # registry-first publication
+        uses: ./npm-action
 
-      - name: Verify publication result
+      - id: evidence
+        name: Verify publication result and preserve candidate evidence
         env:
           PACKAGES: ${{ steps.npm.outputs.packages }}
+          REPORT_PATH: ${{ steps.npm.outputs.report-path }}
           EXPECTED_STATE: ${{ inputs.expected-state }}
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          jq -e \
-            --arg name '@releaseway/npm-actions-fixture' \
-            --arg version "$FIXTURE_VERSION" \
-            --arg state "$EXPECTED_STATE" \
-            'length == 1 and
-             .[0].name == $name and
-             .[0].version == $version and
-             .[0].state == $state' \
-            <<<"$PACKAGES" >/dev/null
+          ACTION_REF: ${{ inputs.action-ref }}
+          VERSION_SOURCE: ${{ inputs.version-source }}
+          WORKFLOW_FILE: publish.yml
+          SCENARIO: npm-stage
+        run: python3 scripts/evidence.py
 
       - name: Summary
         env:
@@ -68,3 +84,11 @@ jobs:
         shell: bash
         run: |
           echo "npm-actions fixture result: $PACKAGES" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload candidate acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: releaseway-acceptance-${{ github.run_attempt }}
+          path: acceptance.json
+          retention-days: 30
+          if-no-files-found: error

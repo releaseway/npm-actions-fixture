@@ -8,6 +8,19 @@ on:
         required: true
         default: 0.0.6-native.0
         type: string
+      action-ref:
+        description: Full releaseway/npm-actions candidate SHA; stable pin by default
+        required: true
+        default: 37972052b35cc092cfdc32255b2468b394254013
+        type: string
+      version-source:
+        description: Resolve fixture version from package metadata or npm-fixture-v tag
+        required: true
+        default: package-json
+        type: choice
+        options:
+          - package-json
+          - git-tag
       expected-state:
         description: Expected npm-actions package state
         required: true
@@ -32,47 +45,26 @@ jobs:
           node-version: "24"
 
       - id: native
-        name: Prepare native fixture metadata
+        name: Prepare fixture identity and metadata
         env:
+          ACTION_REF: ${{ inputs.action-ref }}
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
-        shell: bash
-        run: |
-          set -euo pipefail
+          VERSION_SOURCE: ${{ inputs.version-source }}
+          FIXTURE_KIND: native
+        run: python3 scripts/prepare.py
 
-          if ! [[ "$FIXTURE_VERSION" =~ ^0\.0\.[1-9][0-9]*-native\.[0-9]+$ ]]; then
-            echo "fixture-version must match 0.0.N-native.M: $FIXTURE_VERSION" >&2
-            exit 1
-          fi
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: releaseway/npm-actions
+          ref: ${{ inputs.action-ref }}
+          path: npm-action
+          persist-credentials: false
 
-          tmp_package="$(mktemp)"
-          jq \
-            --arg version "$FIXTURE_VERSION" \
-            '.version = $version | .bin = {"npm-actions-native-fixture":"bin/npm-actions-native-fixture"}' \
-            package.json >"$tmp_package"
-          mv "$tmp_package" package.json
-
-          cat > .github/npm/packages.yml <<'YAML'
-          schema: 1
-
-          publish:
-            mode: direct
-
-          packages:
-            "@releaseway/npm-actions-fixture":
-              distribution:
-                type: github-release
-                tag: "native-v{version}"
-                targets:
-                  linux-x64-gnu:
-                    asset: npm-actions-native-fixture_linux_x64.tar.gz
-                    executable: bin/npm-actions-native-fixture
-          YAML
-
-          {
-            echo "version=$FIXTURE_VERSION"
-            echo "tag=native-v$FIXTURE_VERSION"
-            echo "asset=npm-actions-native-fixture_linux_x64.tar.gz"
-          } >>"$GITHUB_OUTPUT"
+      - name: Verify checked-out candidate identity
+        env:
+          ACTION_REF: ${{ inputs.action-ref }}
+        run: test "$(git -C npm-action rev-parse HEAD)" = "${ACTION_REF,,}"
 
       - name: Create or reuse immutable native Release
         if: inputs.expected-state == 'published'
@@ -161,66 +153,66 @@ jobs:
           }
 
       - id: npm
-        uses: releaseway/npm-actions@37972052b35cc092cfdc32255b2468b394254013 # registry-first publication
+        uses: ./npm-action
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
 
-      - name: Verify publication result
+      - id: evidence
+        name: Verify publication result and preserve candidate evidence
         env:
           PACKAGES: ${{ steps.npm.outputs.packages }}
+          REPORT_PATH: ${{ steps.npm.outputs.report-path }}
           EXPECTED_STATE: ${{ inputs.expected-state }}
-          FIXTURE_VERSION: ${{ steps.native.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          jq -e \
-            --arg name '@releaseway/npm-actions-fixture' \
-            --arg version "$FIXTURE_VERSION" \
-            --arg state "$EXPECTED_STATE" \
-            'length == 1 and
-             .[0].name == $name and
-             .[0].version == $version and
-             .[0].state == $state' \
-            <<<"$PACKAGES" >/dev/null
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
+          ACTION_REF: ${{ inputs.action-ref }}
+          VERSION_SOURCE: ${{ inputs.version-source }}
+          WORKFLOW_FILE: direct.yml
+          SCENARIO: npm-direct
+        run: python3 scripts/evidence.py
 
-      - name: Install and execute the published native CLI
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Install and execute native CLI on Node 22
         env:
-          FIXTURE_VERSION: ${{ steps.native.outputs.version }}
-          XDG_CACHE_HOME: ${{ runner.temp }}/native-cache
-        shell: bash
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
+          EXPECTED_INTEGRITY: ${{ steps.evidence.outputs.integrity }}
+          XDG_CACHE_HOME: ${{ runner.temp }}/native-cache-22-${{ github.run_attempt }}
+        run: bash scripts/verify-native.sh
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Install and execute native CLI on Node 24
+        env:
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
+          EXPECTED_INTEGRITY: ${{ steps.evidence.outputs.integrity }}
+          XDG_CACHE_HOME: ${{ runner.temp }}/native-cache-24-${{ github.run_attempt }}
+        run: bash scripts/verify-native.sh
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "26"
+
+      - name: Install and execute native CLI on Node 26
+        env:
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
+          EXPECTED_INTEGRITY: ${{ steps.evidence.outputs.integrity }}
+          XDG_CACHE_HOME: ${{ runner.temp }}/native-cache-26-${{ github.run_attempt }}
+        run: bash scripts/verify-native.sh
+
+      - name: Record verified consumer runtimes
         run: |
-          set -euo pipefail
-
-          rm -rf "$XDG_CACHE_HOME"
-          consumer="$RUNNER_TEMP/native-consumer"
-          mkdir -p "$consumer"
-          printf '%s\n' '{"private":true}' >"$consumer/package.json"
-
-          npm install \
-            --ignore-scripts \
-            --no-audit \
-            --no-fund \
-            --registry=https://registry.npmjs.org/ \
-            --prefix "$consumer" \
-            "@releaseway/npm-actions-fixture@$FIXTURE_VERSION"
-
-          bin="$consumer/node_modules/.bin/npm-actions-native-fixture"
-          first="$("$bin" --probe)"
-          test "$first" = "npm-actions-native-fixture-ok"
-
-          cache_root="$XDG_CACHE_HOME/releaseway/npm-actions/native/v2/sha256"
-          test -d "$cache_root"
-          test "$(find "$cache_root" -type f -name archive.bin | wc -l)" -eq 1
-          test "$(find "$cache_root" -type f -name metadata.json | wc -l)" -eq 1
-
-          find "$cache_root" -type f -printf '%P %s %T@\n' | LC_ALL=C sort >"$RUNNER_TEMP/cache-before.txt"
-          chmod -R a-w "$cache_root"
-
-          second="$("$bin" --probe)"
-          test "$second" = "npm-actions-native-fixture-ok"
-
-          find "$cache_root" -type f -printf '%P %s %T@\n' | LC_ALL=C sort >"$RUNNER_TEMP/cache-after.txt"
-          diff -u "$RUNNER_TEMP/cache-before.txt" "$RUNNER_TEMP/cache-after.txt"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('acceptance.json')
+          evidence = json.loads(p.read_text())
+          evidence['installed_node_versions'] = ['22', '24', '26']
+          p.write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
 
       - name: Summary
         env:
@@ -233,3 +225,11 @@ jobs:
             echo "native Release: $RELEASE_TAG"
             echo "installed CLI: first-run + read-only cache-hit verified"
           } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload candidate acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: releaseway-acceptance-${{ github.run_attempt }}
+          path: acceptance.json
+          retention-days: 30
+          if-no-files-found: error

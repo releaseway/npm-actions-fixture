@@ -4,7 +4,7 @@ Permanent integration fixture for releaseway/npm-actions.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-The committed package remains an ordinary non-native fixture. Each workflow rewrites checkout-local metadata for its requested scenario; it does not commit version changes. Both workflows pin the same reviewed npm-actions commit.
+The committed package remains an ordinary non-native fixture. Workflows rewrite checkout-local metadata without committing it. Both accept a full `action-ref` SHA, default to the same stable reviewed commit, verify the checked-out SHA and run `./npm-action`.
 
 ## Result contract
 
@@ -44,8 +44,34 @@ The inputs default to `fixture-version=0.0.6-native.0` and `expected-state=alrea
 
 To publish a new native fixture, select a fresh `0.0.N-native.M` version and `expected-state=published`. Repository release immutability must be enabled. The workflow creates or reuses a same-commit `native-v<version>` Release, uploads the Linux x64 asset, and waits for immutability and a SHA-256 asset digest before invoking npm-actions. The action prepares only an unpublished candidate and confirms its exact SHA-512 in the live registry.
 
-For both native scenarios, installation uses the exact requested npm version and `--ignore-scripts`. The workflow starts with an empty native cache, executes the installed command, makes the populated cache read-only, executes again, and compares cache file snapshots. The second run checks reuse without file changes; it does not independently assert that all network access was blocked.
+Both native scenarios install the exact version with `--ignore-scripts` on Node 22, 24 and 26, each with a separate empty native cache. They execute the CLI, make its populated cache read-only, execute again and compare file snapshots. Fresh `published` runs also compare installed package-lock SHA-512 with the action report's frozen plan. Historical lookup remains a separate result.
 
 The fixture asset is `native/fixture.sh`, packed into `npm-actions-native-fixture_linux_x64.tar.gz` at `bin/npm-actions-native-fixture`. It prints `npm-actions-native-fixture-ok` for the expected `--probe` invocation.
 
 Cross-platform installed-wrapper behavior is covered in the npm-actions repository by the runtime/install matrix on Linux x64/arm64, macOS x64/arm64, and Windows x64/arm64. This real-registry native fixture targets Linux x64 to exercise GitHub Release provenance, npm OIDC publication, installation, first-run download, and cache reuse.
+
+## Candidate acceptance
+
+Supply the candidate's full 40-character `action-ref`, a fresh version and fresh
+expected state (`staged` or `published`). New candidates must implement `report-path`.
+Stable defaults continue to exercise historical lookup.
+
+Both workflows accept `version-source=package-json` (default) or `git-tag`. For tags,
+create `npm-fixture-v<fixture-version>` targeting the fixture workflow commit before
+dispatch. Use one matching version tag per fixture commit; ordinary and native
+tag-derived versions need separate commits. Their dist-tags are `fixture` and `native`.
+
+Successful runs upload `releaseway-acceptance-<run_attempt>` with one `acceptance.json`,
+retained for 30 days. It records candidate SHA, fixture commit, run/attempt, scenario,
+version source, version, state, planned integrity for fresh publication and verified
+Node versions for direct consumers. Staged success proves submission; approval and
+installation remain separate maintainer actions. Historical lookup cannot certify a
+new action release.
+
+Preserve a successful fresh publication run for readiness. If a version was already
+submitted or published, choose a fresh version for another candidate test. Direct
+publication resolves an identical concurrent publish through matching integrity;
+a later rerun that initially sees the version public returns lookup state.
+
+Local contracts: `python3 test/contracts.py`. CI also checks shell syntax/workflows.
+Public OIDC acceptance requires the Trusted Publisher connections described above.
