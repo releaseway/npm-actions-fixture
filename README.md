@@ -4,7 +4,7 @@ Permanent integration fixture for releaseway/npm-actions.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-The committed package remains an ordinary non-native fixture. Workflows rewrite checkout-local metadata without committing it. Both accept a full `action-ref` SHA, default to the same stable reviewed commit, verify the checked-out SHA and run `./npm-action`.
+The committed package remains an ordinary non-native fixture. Workflows rewrite checkout-local metadata without committing it. Both accept a full `action-ref` SHA, default to the published `releaseway/npm-actions v0.4.0` commit, verify the checked-out SHA and run `./npm-action`.
 
 ## Result contract
 
