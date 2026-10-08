@@ -4,7 +4,7 @@ Permanent integration fixture for releaseway/npm-actions.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, default to the verified `releaseway/npm-actions v0.5.0` candidate, verify the checked-out SHA and run `./npm-action`.
+The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, default to the verified `releaseway/npm-actions v0.5.1` candidate, verify the checked-out SHA and run `./npm-action`.
 
 ## Result contract
 
@@ -26,6 +26,16 @@ The package identity is already bootstrapped. Configure npm Trusted Publishing f
 The bootstrap credential is no longer part of the fixture flow.
 
 ## Staged fixture
+
+For the complete preparation/publication flow, dispatch `publish.yml` with
+`prepare-release=true`, `version-source=git-tag`, `expected-state=staged`, and the
+planned `fixture-version` (initially `0.0.12-fixture.0`). The committed release and
+npm policies select `prepared-npm-v` tags and `next`. Releaseway plans the version,
+the fixture checks that expectation, then Releaseway resumes the saved plan and
+atomically pushes the marker commit and tag. npm-actions receives the prepared
+commit through its JavaScript action input and packs its tag-derived version.
+This path does not run the metadata preparation script or rewrite `package.json`.
+Evidence retains the workflow source SHA and separately records the prepared SHA.
 
 `publish.yml` keeps the committed Releaseway policy at its staged default. It accepts `fixture-version` in the form `0.0.N-fixture.M` and `expected-state` as either `staged` or `already-published`.
 

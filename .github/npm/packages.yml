@@ -1,5 +1,9 @@
 schema: 1
 
+version:
+  source: git-tag
+  prefix: prepared-npm-v
+
 publish:
   mode: stage
   channels:

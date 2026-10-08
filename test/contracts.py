@@ -79,6 +79,10 @@ class CandidateTests(unittest.TestCase):
         report['source']['commit'] = 'c' * 40
         Path('report.json').write_text(json.dumps(report))
         with self.assertRaises(ValueError): evidence(env)
+        evidence({**env, 'RELEASE_COMMIT': 'c' * 40})
+        self.assertEqual(json.loads(Path('acceptance.json').read_text())['prepared_commit'], 'c' * 40)
+        self.assertEqual(json.loads(Path('acceptance.json').read_text())['fixture_commit'], 'b' * 40)
+        with self.assertRaises(ValueError): evidence({**env, 'RELEASE_COMMIT': 'main'})
         packages[0]['state'] = 'already-published'
         evidence({**env, 'PACKAGES': json.dumps(packages), 'EXPECTED_STATE': 'already-published', 'REPORT_PATH': 'absent.json'})
         self.assertNotIn('integrity', json.loads(Path('acceptance.json').read_text()))

@@ -1,0 +1,6 @@
+schema: 1
+branch: main
+tag-prefix: prepared-npm-v
+initial-version: 0.0.12
+bump: patch
+latest: "false"

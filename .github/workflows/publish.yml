@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: 58894b31c57c4a50a90bd9c6d4976af8b0bcf97d # v0.5.0
+        default: 680948414bbe6bfe64e94f776c3514ad44f3dd69 # v0.5.1
         type: string
       version-source:
         description: Resolve fixture version from package metadata or npm-fixture-v tag
@@ -29,19 +29,31 @@ on:
         options:
           - staged
           - already-published
+      prepare-release:
+        description: Prepare a release marker and publish from its tag in this same workflow; use git-tag and the planned fixture version.
+        required: true
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
+
+concurrency:
+  group: npm-fixture-release
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - id: native
         name: Prepare fixture identity and metadata
+        if: ${{ !inputs.prepare-release }}
         env:
           ACTION_REF: ${{ inputs.action-ref }}
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
@@ -62,8 +74,39 @@ jobs:
           ACTION_REF: ${{ inputs.action-ref }}
         run: test "$(git -C npm-action rev-parse HEAD)" = "${ACTION_REF,,}"
 
+      - name: Validate prepared fixture request
+        if: inputs.prepare-release
+        env:
+          VERSION_SOURCE: ${{ inputs.version-source }}
+          EXPECTED_STATE: ${{ inputs.expected-state }}
+        run: test "$VERSION_SOURCE" = git-tag && test "$EXPECTED_STATE" = staged
+
+      - id: release
+        name: Plan the next fixture release
+        if: inputs.prepare-release
+        uses: releaseway/actions/prepare@5841e545ff259790a3b2461299e741d62c69a73d # v0.4.1
+        with:
+          mode: plan
+          prerelease-id: fixture
+
+      - name: Verify planned fixture version
+        if: inputs.prepare-release
+        env:
+          PLANNED_VERSION: ${{ steps.release.outputs.version }}
+          FIXTURE_VERSION: ${{ inputs.fixture-version }}
+        run: test "$PLANNED_VERSION" = "$FIXTURE_VERSION"
+
+      - name: Execute the verified release plan
+        if: inputs.prepare-release
+        uses: releaseway/actions/prepare@5841e545ff259790a3b2461299e741d62c69a73d # v0.4.1
+        with:
+          mode: resume
+          plan-path: ${{ steps.release.outputs.plan-path }}
+
       - id: npm
         uses: ./npm-action
+        with:
+          release-commit: ${{ steps.release.outputs.commit }}
 
       - id: evidence
         name: Verify publication result and preserve candidate evidence
@@ -76,6 +119,7 @@ jobs:
           VERSION_SOURCE: ${{ inputs.version-source }}
           WORKFLOW_FILE: publish.yml
           SCENARIO: npm-stage
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
         run: python3 scripts/evidence.py
 
       - name: Summary

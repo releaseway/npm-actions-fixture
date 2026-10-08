@@ -18,8 +18,13 @@ def evidence(env=os.environ):
                   version=expected['version'], state=expected['state'])
     if expected['state'] != 'already-published':
         report = json.loads(Path(env['REPORT_PATH']).read_text())
-        if report['status'] != 'success' or report['source'] != {'repository': env['GITHUB_REPOSITORY'], 'commit': env['GITHUB_SHA']} or report['results'] != packages:
+        commit = env.get('RELEASE_COMMIT') or env['GITHUB_SHA']
+        if not re.fullmatch(r'[0-9a-f]{40}', commit):
+            raise ValueError('invalid prepared source commit')
+        if report['status'] != 'success' or report['source'] != {'repository': env['GITHUB_REPOSITORY'], 'commit': commit} or report['results'] != packages:
             raise ValueError('report source/result mismatch')
+        if commit != env['GITHUB_SHA']:
+            result['prepared_commit'] = commit
         plan = report['plan']
         if len(plan) != 1 or plan[0]['name'] != expected['name'] or plan[0]['version'] != expected['version']:
             raise ValueError('report plan mismatch')

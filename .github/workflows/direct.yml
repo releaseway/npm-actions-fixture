@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: 58894b31c57c4a50a90bd9c6d4976af8b0bcf97d # v0.5.0
+        default: 680948414bbe6bfe64e94f776c3514ad44f3dd69 # v0.5.1
         type: string
       version-source:
         description: Resolve fixture version from package metadata or npm-fixture-v tag
@@ -35,7 +35,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: native-release-${{ github.ref }}
+  group: npm-fixture-release
   cancel-in-progress: false
 
 jobs:
