@@ -4,7 +4,7 @@ Permanent integration fixture for releaseway/npm-actions.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-The committed package remains an ordinary non-native fixture. Workflows rewrite checkout-local metadata without committing it. Both accept a full `action-ref` SHA, default to the published `releaseway/npm-actions v0.4.0` commit, verify the checked-out SHA and run `./npm-action`.
+The committed package remains an ordinary non-native fixture. Workflows rewrite checkout-local metadata without committing it. Both accept a full `action-ref` SHA, default to the published `releaseway/npm-actions v0.4.1` commit, verify the checked-out SHA and run `./npm-action`.
 
 ## Result contract
 
@@ -40,7 +40,7 @@ The defaults use `0.0.5-fixture.0` with `already-published` to exercise version 
 - Workflow filename: `direct.yml`
 - Allowed action: enable `Allow npm publish`
 
-The inputs default to `fixture-version=0.0.6-native.0` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
+The inputs default to `fixture-version=0.0.9-native.0` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
 
 To publish a new native fixture, select a fresh `0.0.N-native.M` version and `expected-state=published`. Repository release immutability must be enabled. The workflow creates or reuses a same-commit `native-v<version>` Release, uploads the Linux x64 asset, and waits for immutability and a SHA-256 asset digest before invoking npm-actions. The action prepares only an unpublished candidate and confirms its exact SHA-512 in the live registry.
 
