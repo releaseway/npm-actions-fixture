@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: 8e3b3ac17f57a0294dfcf5dd726b1e83ec3cf13d # v0.5.0
+        default: 58894b31c57c4a50a90bd9c6d4976af8b0bcf97d # v0.5.0
         type: string
       version-source:
         description: Resolve fixture version from package metadata or npm-fixture-v tag
@@ -89,7 +89,7 @@ jobs:
 
       - name: Bind native release tag
         if: inputs.expected-state == 'published'
-        uses: releaseway/actions/prepare@9feef2fe68e2b5bc8739f3e23877499b0fa32a6c # v0.4.0
+        uses: releaseway/actions/prepare@5841e545ff259790a3b2461299e741d62c69a73d # v0.4.1
         with:
           mode: tag
           tag: ${{ steps.native.outputs.tag }}
@@ -97,7 +97,7 @@ jobs:
 
       - name: Publish or resume immutable native release
         if: inputs.expected-state == 'published'
-        uses: releaseway/actions@9feef2fe68e2b5bc8739f3e23877499b0fa32a6c # v0.4.0
+        uses: releaseway/actions@5841e545ff259790a3b2461299e741d62c69a73d # v0.4.1
         with:
           tag: ${{ steps.native.outputs.tag }}
           commit: ${{ github.sha }}

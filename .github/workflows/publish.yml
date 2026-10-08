@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: 8e3b3ac17f57a0294dfcf5dd726b1e83ec3cf13d # v0.5.0
+        default: 58894b31c57c4a50a90bd9c6d4976af8b0bcf97d # v0.5.0
         type: string
       version-source:
         description: Resolve fixture version from package metadata or npm-fixture-v tag
