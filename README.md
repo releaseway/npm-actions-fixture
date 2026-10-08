@@ -50,7 +50,7 @@ The defaults use `0.0.5-fixture.0` with `already-published` to exercise version 
 - Workflow filename: `direct.yml`
 - Allowed action: enable `Allow npm publish`
 
-The inputs default to `fixture-version=0.0.11-native.0` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
+The inputs default to `fixture-version=0.0.12-native.0` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
 
 To publish a new native fixture, select a fresh `0.0.N-native.M` version and `expected-state=published`. Repository release immutability must be enabled. Product steps build the deterministic Linux x64 asset. `releaseway/actions/prepare` binds the same-commit `native-v<version>` tag and `releaseway/actions` publishes or resumes its immutable prerelease with verified asset digests, before npm-actions publishes to `next`. The action prepares only an unpublished candidate and confirms its exact SHA-512 in the live registry.
 
