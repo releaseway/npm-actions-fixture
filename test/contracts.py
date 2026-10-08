@@ -32,7 +32,8 @@ class CandidateTests(unittest.TestCase):
     def test_direct_native_policy(self):
         prepare({**self.env, 'FIXTURE_KIND': 'native', 'FIXTURE_VERSION': '0.0.8-native.0'}, self.root)
         package = json.loads((self.root / 'package.json').read_text())
-        self.assertEqual(package['publishConfig']['tag'], 'native')
+        self.assertNotIn('tag', package['publishConfig'])
+        self.assertIn('prerelease: next', (self.root / '.github/npm/packages.yml').read_text())
         self.assertIn('mode: direct', (self.root / '.github/npm/packages.yml').read_text())
         self.assertIn('bin/npm-actions-native-fixture', package['bin'].values())
 
@@ -60,7 +61,7 @@ class CandidateTests(unittest.TestCase):
         policy = (self.root / '.github/npm/packages.yml').read_text()
         self.assertIn('source: git-tag', policy)
         self.assertIn('prefix: npm-fixture-v', policy)
-        self.assertIn('prerelease-tag: fixture', policy)
+        self.assertIn('prerelease: next', policy)
 
     def test_fresh_report_and_historical_lookup(self):
         previous = Path.cwd()

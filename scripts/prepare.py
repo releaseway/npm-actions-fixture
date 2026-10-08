@@ -29,10 +29,9 @@ def prepare(env=os.environ, root=Path('.')):
         package['version'] = version
     if kind == 'native':
         package['bin'] = {'npm-actions-native-fixture': 'bin/npm-actions-native-fixture'}
-        package['publishConfig']['tag'] = 'native'
-    policy = 'schema: 1\n\npublish:\n  mode: ' + ('direct' if kind == 'native' else 'stage') + '\n'
+    policy = 'schema: 1\n\npublish:\n  mode: ' + ('direct' if kind == 'native' else 'stage') + '\n  channels:\n    stable: latest\n    prerelease: next\n'
     if source == 'git-tag':
-        policy += '\nversion:\n  source: git-tag\n  prefix: npm-fixture-v\n  prerelease-tag: ' + kind + '\n'
+        policy += '\nversion:\n  source: git-tag\n  prefix: npm-fixture-v\n'
     if kind == 'native':
         policy += '''
 packages:

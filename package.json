@@ -12,7 +12,6 @@
     "url": "git+https://github.com/releaseway/npm-actions-fixture.git"
   },
   "publishConfig": {
-    "access": "public",
-    "tag": "fixture"
+    "access": "public"
   }
 }

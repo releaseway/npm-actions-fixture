@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: 6ae3c0b8270f00f0396a91b5ade98a793f25c13a # v0.4.1
+        default: 8e3b3ac17f57a0294dfcf5dd726b1e83ec3cf13d # v0.5.0
         type: string
       version-source:
         description: Resolve fixture version from package metadata or npm-fixture-v tag
@@ -33,6 +33,10 @@ on:
 permissions:
   contents: write
   id-token: write
+
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -66,11 +70,9 @@ jobs:
           ACTION_REF: ${{ inputs.action-ref }}
         run: test "$(git -C npm-action rev-parse HEAD)" = "${ACTION_REF,,}"
 
-      - name: Create or reuse immutable native Release
+      - name: Build deterministic native fixture asset
         if: inputs.expected-state == 'published'
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.native.outputs.tag }}
           ASSET_NAME: ${{ steps.native.outputs.asset }}
         shell: bash
         run: |
@@ -78,79 +80,31 @@ jobs:
 
           asset="$RUNNER_TEMP/$ASSET_NAME"
 
-          build_asset() {
-            local root="$RUNNER_TEMP/native-asset"
-            rm -rf "$root"
-            mkdir -p "$root/bin"
-            cp native/fixture.sh "$root/bin/npm-actions-native-fixture"
-            chmod 0755 "$root/bin/npm-actions-native-fixture"
-            tar \
-              --sort=name \
-              --mtime='@0' \
-              --owner=0 \
-              --group=0 \
-              --numeric-owner \
-              -czf "$asset" \
-              -C "$root" \
-              bin
-          }
+          root="$RUNNER_TEMP/native-asset"
+          mkdir -p "$root/bin"
+          cp native/fixture.sh "$root/bin/npm-actions-native-fixture"
+          chmod 0755 "$root/bin/npm-actions-native-fixture"
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+            -czf "$asset" -C "$root" bin
 
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-            release_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
-            test "$release_commit" = "$GITHUB_SHA" || {
-              echo "existing Release tag resolves to $release_commit, expected $GITHUB_SHA" >&2
-              exit 1
-            }
+      - name: Bind native release tag
+        if: inputs.expected-state == 'published'
+        uses: releaseway/actions/prepare@9feef2fe68e2b5bc8739f3e23877499b0fa32a6c # v0.4.0
+        with:
+          mode: tag
+          tag: ${{ steps.native.outputs.tag }}
+          commit: ${{ github.sha }}
 
-            is_draft="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
-            if [ "$is_draft" = "true" ]; then
-              build_asset
-              if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx "$ASSET_NAME" >/dev/null; then
-                gh release upload "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY"
-              fi
-              gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
-            fi
-          else
-            build_asset
-            gh release create "$RELEASE_TAG" \
-              "$asset#Linux x64 native fixture" \
-              --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" \
-              --title "$RELEASE_TAG" \
-              --notes "Permanent npm-actions native integration fixture." \
-              --draft
-            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
-          fi
-
-          ready=false
-          for _ in $(seq 1 30); do
-            release_json="$(gh api \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2026-03-10' \
-              "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
-
-            if jq -e \
-              --arg asset "$ASSET_NAME" \
-              '.draft == false and .immutable == true and
-               ([.assets[] |
-                 select(
-                   .name == $asset and
-                   .state == "uploaded" and
-                   (.digest | type == "string" and startswith("sha256:"))
-                 )
-               ] | length == 1)' \
-              <<<"$release_json" >/dev/null; then
-              ready=true
-              break
-            fi
-            sleep 2
-          done
-
-          test "$ready" = "true" || {
-            echo "native Release did not become immutable with a SHA-256 asset digest" >&2
-            exit 1
-          }
+      - name: Publish or resume immutable native release
+        if: inputs.expected-state == 'published'
+        uses: releaseway/actions@9feef2fe68e2b5bc8739f3e23877499b0fa32a6c # v0.4.0
+        with:
+          tag: ${{ steps.native.outputs.tag }}
+          commit: ${{ github.sha }}
+          assets: ${{ runner.temp }}/${{ steps.native.outputs.asset }}
+          notes: none
+          prerelease: "true"
+          latest: "false"
 
       - id: npm
         uses: ./npm-action

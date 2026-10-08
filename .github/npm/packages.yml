@@ -2,3 +2,6 @@ schema: 1
 
 publish:
   mode: stage
+  channels:
+    stable: latest
+    prerelease: next
