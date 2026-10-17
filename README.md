@@ -60,6 +60,19 @@ The fixture asset is `native/fixture.sh`, packed into `npm-actions-native-fixtur
 
 Cross-platform installed-wrapper behavior is covered in the npm-actions repository by the runtime/install matrix on Linux x64/arm64, macOS x64/arm64, and Windows x64/arm64. This real-registry native fixture targets Linux x64 to exercise GitHub Release provenance, npm OIDC publication, installation, first-run download, and cache reuse.
 
+## Native command aliases
+
+For an alias-capable candidate, dispatch `direct.yml` with its full `action-ref`,
+a fresh native version, `expected-state=published`, and `command-aliases=true`.
+Preparation maps both `npm-actions-native-fixture` and `rw-npm-fixture` to the same
+generated launcher. Every Node 22/24/26 consumer executes both names, then repeats
+them against one read-only cache. Successful evidence records the alias names.
+
+The alias option defaults to `false` during candidate adoption, so historical
+packages and the existing stable action remain usable. Set it to `false` for an
+older published fixture without aliases. Staged non-native fixtures do not use this
+option. A historical lookup still cannot certify new candidate packaging.
+
 ## Candidate acceptance
 
 Supply the candidate's full 40-character `action-ref`, a fresh version and fresh

@@ -37,6 +37,21 @@ class CandidateTests(unittest.TestCase):
         self.assertIn('mode: direct', (self.root / '.github/npm/packages.yml').read_text())
         self.assertIn('bin/npm-actions-native-fixture', package['bin'].values())
 
+    def test_native_alias_opt_in_and_invalid_flags_preserve_metadata(self):
+        native = {**self.env, 'FIXTURE_KIND': 'native', 'FIXTURE_VERSION': '0.0.13-native.0'}
+        before = (self.root / 'package.json').read_bytes()
+        for env in [{**native, 'COMMAND_ALIASES': 'yes'}, {**self.env, 'COMMAND_ALIASES': 'true'}]:
+            with self.assertRaises(ValueError): prepare(env, self.root)
+            self.assertEqual((self.root / 'package.json').read_bytes(), before)
+            self.assertFalse((self.root / '.github/npm/packages.yml').exists())
+        prepare({**native, 'COMMAND_ALIASES': 'false'}, self.root)
+        self.assertEqual(list(json.loads((self.root / 'package.json').read_text())['bin']), ['npm-actions-native-fixture'])
+        prepare({**native, 'COMMAND_ALIASES': 'true'}, self.root)
+        self.assertEqual(json.loads((self.root / 'package.json').read_text())['bin'], {
+            'npm-actions-native-fixture': 'bin/npm-actions-native-fixture',
+            'rw-npm-fixture': 'bin/npm-actions-native-fixture',
+        })
+
     def test_tag_derived_version_and_wrong_commit(self):
         def git(*args):
             return subprocess.check_output(['git', *args], cwd=self.root, text=True, stderr=subprocess.DEVNULL).strip()
@@ -101,6 +116,7 @@ class CandidateTests(unittest.TestCase):
             step = direct.split('Install and execute native CLI on Node ' + version)[1].split('      - ')[0]
             self.assertIn('FIXTURE_VERSION: ${{ inputs.fixture-version }}', step)
             self.assertIn('native-cache-' + version + '-', step)
+            self.assertIn('COMMAND_ALIASES: ${{ inputs.command-aliases }}', step)
             self.assertIn('run: bash scripts/verify-native.sh', step)
         self.assertLess(direct.index('Install and execute native CLI on Node 26'), direct.index('Record verified consumer runtimes'))
         self.assertIn('FIXTURE_VERSION: ${{ inputs.fixture-version }}', direct.split('Install and execute native CLI on Node 22')[1])
@@ -109,6 +125,8 @@ class CandidateTests(unittest.TestCase):
         self.assertIn('--ignore-scripts', consumer)
         self.assertIn('EXPECTED_INTEGRITY', consumer)
         self.assertIn('diff -u', consumer)
+        self.assertIn('commands+=(rw-npm-fixture)', consumer)
+        self.assertIn("evidence['command_aliases']", direct)
 
 
 if __name__ == '__main__':

@@ -14,6 +14,11 @@ def prepare(env=os.environ, root=Path('.')):
     version = env['FIXTURE_VERSION']
     if kind not in ('fixture', 'native') or not re.fullmatch(r'0\.0\.[1-9][0-9]*-' + kind + r'\.[0-9]+', version):
         raise ValueError('invalid fixture version')
+    aliases = env.get('COMMAND_ALIASES', 'false')
+    if aliases not in ('true', 'false'):
+        raise ValueError('command-aliases must be true or false')
+    if aliases == 'true' and kind != 'native':
+        raise ValueError('command-aliases requires a native fixture')
     source = env['VERSION_SOURCE']
     if source not in ('package-json', 'git-tag'):
         raise ValueError('invalid version-source')
@@ -29,6 +34,8 @@ def prepare(env=os.environ, root=Path('.')):
         package['version'] = version
     if kind == 'native':
         package['bin'] = {'npm-actions-native-fixture': 'bin/npm-actions-native-fixture'}
+        if aliases == 'true':
+            package['bin']['rw-npm-fixture'] = 'bin/npm-actions-native-fixture'
     policy = 'schema: 1\n\npublish:\n  mode: ' + ('direct' if kind == 'native' else 'stage') + '\n  channels:\n    stable: latest\n    prerelease: next\n'
     if source == 'git-tag':
         policy += '\nversion:\n  source: git-tag\n  prefix: npm-fixture-v\n'

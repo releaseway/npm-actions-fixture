@@ -13,6 +13,10 @@ on:
         required: true
         default: 680948414bbe6bfe64e94f776c3514ad44f3dd69 # v0.5.1
         type: string
+      command-aliases:
+        description: Verify additional command names from a newly published alias fixture
+        type: boolean
+        default: false
       version-source:
         description: Resolve fixture version from package metadata or npm-fixture-v tag
         required: true
@@ -55,6 +59,7 @@ jobs:
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
           VERSION_SOURCE: ${{ inputs.version-source }}
           FIXTURE_KIND: native
+          COMMAND_ALIASES: ${{ inputs.command-aliases }}
         run: python3 scripts/prepare.py
 
       - name: Checkout exact candidate
@@ -132,6 +137,7 @@ jobs:
         env:
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
           EXPECTED_INTEGRITY: ${{ steps.evidence.outputs.integrity }}
+          COMMAND_ALIASES: ${{ inputs.command-aliases }}
           XDG_CACHE_HOME: ${{ runner.temp }}/native-cache-22-${{ github.run_attempt }}
         run: bash scripts/verify-native.sh
 
@@ -143,6 +149,7 @@ jobs:
         env:
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
           EXPECTED_INTEGRITY: ${{ steps.evidence.outputs.integrity }}
+          COMMAND_ALIASES: ${{ inputs.command-aliases }}
           XDG_CACHE_HOME: ${{ runner.temp }}/native-cache-24-${{ github.run_attempt }}
         run: bash scripts/verify-native.sh
 
@@ -154,17 +161,21 @@ jobs:
         env:
           FIXTURE_VERSION: ${{ inputs.fixture-version }}
           EXPECTED_INTEGRITY: ${{ steps.evidence.outputs.integrity }}
+          COMMAND_ALIASES: ${{ inputs.command-aliases }}
           XDG_CACHE_HOME: ${{ runner.temp }}/native-cache-26-${{ github.run_attempt }}
         run: bash scripts/verify-native.sh
 
       - name: Record verified consumer runtimes
+        env:
+          COMMAND_ALIASES: ${{ inputs.command-aliases }}
         run: |
           python3 - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           p = Path('acceptance.json')
           evidence = json.loads(p.read_text())
           evidence['installed_node_versions'] = ['22', '24', '26']
+          evidence['command_aliases'] = ['rw-npm-fixture'] if os.environ['COMMAND_ALIASES'] == 'true' else []
           p.write_text(json.dumps(evidence, indent=2) + '\n')
           PY
 
