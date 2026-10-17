@@ -4,7 +4,7 @@ Permanent integration fixture for releaseway/npm-actions.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, default to the verified `releaseway/npm-actions v0.5.1` candidate, verify the checked-out SHA and run `./npm-action`.
+The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, default to the verified `releaseway/npm-actions v0.6.0` release, verify the checked-out SHA and run `./npm-action`.
 
 ## Result contract
 
@@ -29,7 +29,7 @@ The bootstrap credential is no longer part of the fixture flow.
 
 For the complete preparation/publication flow, dispatch `publish.yml` with
 `prepare-release=true`, `version-source=git-tag`, `expected-state=staged`, and the
-planned `fixture-version` (initially `0.0.12-fixture.0`). The committed release and
+planned `fixture-version` (most recently `0.0.12-fixture.1`; use the planner result for the next run). The committed release and
 npm policies select `prepared-npm-v` tags and `next`. Releaseway plans the version,
 the fixture checks that expectation, then Releaseway resumes the saved plan and
 atomically pushes the marker commit and tag. npm-actions receives the prepared
@@ -50,7 +50,7 @@ The defaults use `0.0.5-fixture.0` with `already-published` to exercise version 
 - Workflow filename: `direct.yml`
 - Allowed action: enable `Allow npm publish`
 
-The inputs default to `fixture-version=0.0.12-native.0` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
+The inputs default to `fixture-version=0.0.13-native.0` with `command-aliases=true` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
 
 To publish a new native fixture, select a fresh `0.0.N-native.M` version and `expected-state=published`. Repository release immutability must be enabled. Product steps build the deterministic Linux x64 asset. `releaseway/actions/prepare` binds the same-commit `native-v<version>` tag and `releaseway/actions` publishes or resumes its immutable prerelease with verified asset digests, before npm-actions publishes to `next`. The action prepares only an unpublished candidate and confirms its exact SHA-512 in the live registry.
 
@@ -68,9 +68,8 @@ Preparation maps both `npm-actions-native-fixture` and `rw-npm-fixture` to the s
 generated launcher. Every Node 22/24/26 consumer executes both names, then repeats
 them against one read-only cache. Successful evidence records the alias names.
 
-The alias option defaults to `false` during candidate adoption, so historical
-packages and the existing stable action remain usable. Set it to `false` for an
-older published fixture without aliases. Staged non-native fixtures do not use this
+The alias option defaults to `true` with the alias-capable native fixture.
+Set it to `false` for an older published fixture without aliases. Staged non-native fixtures do not use this
 option. A historical lookup still cannot certify new candidate packaging.
 
 ## Candidate acceptance
@@ -79,10 +78,11 @@ Supply the candidate's full 40-character `action-ref`, a fresh version and fresh
 expected state (`staged` or `published`). New candidates must implement `report-path`.
 Stable defaults continue to exercise historical lookup.
 
-Both workflows accept `version-source=package-json` (default) or `git-tag`. For tags,
+Both workflows accept `version-source=package-json` (default) or `git-tag`. For manual tags without `prepare-release`,
 create `npm-fixture-v<fixture-version>` targeting the fixture workflow commit before
 dispatch. Use one matching version tag per fixture commit; ordinary and native
-tag-derived versions need separate commits. Their dist-tags are `fixture` and `native`.
+tag-derived versions need separate commits. Both prerelease scenarios publish to `next`. With `prepare-release=true`, staged
+publication instead uses the planner-created `prepared-npm-v` tag described above.
 
 Successful runs upload `releaseway-acceptance-<run_attempt>` with one `acceptance.json`,
 retained for 30 days. It records candidate SHA, fixture commit, run/attempt, scenario,
