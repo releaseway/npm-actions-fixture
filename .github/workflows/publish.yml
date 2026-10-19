@@ -84,7 +84,7 @@ jobs:
       - id: release
         name: Plan the next fixture release
         if: inputs.prepare-release
-        uses: releaseway/actions/prepare@5841e545ff259790a3b2461299e741d62c69a73d # v0.4.1
+        uses: releaseway/actions/prepare@1c0b9237f61ee66f68db880963ec03da46c8a6ed # v0.5.0
         with:
           mode: plan
           prerelease-id: fixture
@@ -98,7 +98,7 @@ jobs:
 
       - name: Execute the verified release plan
         if: inputs.prepare-release
-        uses: releaseway/actions/prepare@5841e545ff259790a3b2461299e741d62c69a73d # v0.4.1
+        uses: releaseway/actions/prepare@1c0b9237f61ee66f68db880963ec03da46c8a6ed # v0.5.0
         with:
           mode: resume
           plan-path: ${{ steps.release.outputs.plan-path }}
@@ -130,7 +130,7 @@ jobs:
           echo "npm-actions fixture result: $PACKAGES" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload candidate acceptance evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: releaseway-acceptance-${{ github.run_attempt }}
           path: acceptance.json

@@ -13,5 +13,12 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "packageManager": "pnpm@12.14.0",
+  "devDependencies": {
+    "yaml": "2.9.1"
+  },
+  "scripts": {
+    "test": "python3 test/contracts.py && node --test test/*.test.mjs"
   }
 }
