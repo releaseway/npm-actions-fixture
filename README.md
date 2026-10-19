@@ -1,6 +1,8 @@
 # @releaseway/npm-actions-fixture
 
-Permanent integration fixture for releaseway/npm-actions.
+Permanent integration fixture for releaseway/npm-actions. Development and consumer
+installation checks use pnpm 12.14.0, pinned in `package.json`. Install verifier
+dependencies with `pnpm install --frozen-lockfile`.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 

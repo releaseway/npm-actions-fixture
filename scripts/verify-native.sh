@@ -9,13 +9,12 @@ esac
 consumer="$RUNNER_TEMP/native-consumer"
 mkdir -p "$consumer"
 printf '%s\n' '{"private":true}' >"$consumer/package.json"
-npm install --ignore-scripts --no-audit --no-fund \
-  --registry=https://registry.npmjs.org/ --prefix "$consumer" \
+pnpm --dir "$consumer" add --ignore-scripts \
+  --registry=https://registry.npmjs.org/ \
   "@releaseway/npm-actions-fixture@$FIXTURE_VERSION"
 
 if [ -n "${EXPECTED_INTEGRITY:-}" ]; then
-  actual="$(jq -r '.packages["node_modules/@releaseway/npm-actions-fixture"].integrity' "$consumer/package-lock.json")"
-  test "$actual" = "$EXPECTED_INTEGRITY" || { echo 'installed integrity differs from the candidate plan' >&2; exit 1; }
+  node scripts/verify-installed-integrity.mjs "$consumer/pnpm-lock.yaml" "$FIXTURE_VERSION" "$EXPECTED_INTEGRITY"
 fi
 
 commands=(npm-actions-native-fixture)
