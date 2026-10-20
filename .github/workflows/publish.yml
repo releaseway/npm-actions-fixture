@@ -84,7 +84,7 @@ jobs:
       - id: release
         name: Plan the next fixture release
         if: inputs.prepare-release
-        uses: releaseway/actions/prepare@7427110b565bedef79ab0f80e6821a706d7f21ed # v0.5.1
+        uses: releaseway/actions/prepare@804562f2eb9d7662810298835f7339bd6f26fcfa # app-free candidate
         with:
           mode: plan
           prerelease-id: fixture
@@ -98,7 +98,7 @@ jobs:
 
       - name: Execute the verified release plan
         if: inputs.prepare-release
-        uses: releaseway/actions/prepare@7427110b565bedef79ab0f80e6821a706d7f21ed # v0.5.1
+        uses: releaseway/actions/prepare@804562f2eb9d7662810298835f7339bd6f26fcfa # app-free candidate
         with:
           mode: resume
           plan-path: ${{ steps.release.outputs.plan-path }}
