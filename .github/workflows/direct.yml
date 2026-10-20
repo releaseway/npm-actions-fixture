@@ -33,6 +33,22 @@ on:
         options:
           - published
           - already-published
+      app-free:
+        description: Exercise source-tag rc/stable and explicit npm selection
+        type: boolean
+        default: false
+      actions-ref:
+        description: Full actions candidate SHA for app-free mode
+        type: string
+        default: ""
+      rc-tag:
+        description: Existing app-free tag for explicit reconciliation; supply both
+        type: string
+        default: ""
+      stable-tag:
+        description: Existing app-free tag for explicit reconciliation; supply both
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -204,3 +220,197 @@ jobs:
           path: acceptance.json
           retention-days: 30
           if-no-files-found: error
+    if: ${{ !inputs.app-free }}
+  app-free:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+    outputs:
+      tag: ${{ steps.stable-plan.outputs.tag || steps.stable-resolve.outputs.tag }}
+      version: ${{ steps.stable-plan.outputs.version ||
+        steps.stable-resolve.outputs.version }}
+      commit: ${{ github.sha }}
+      evidence-id: ${{ steps.evidence.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "24"
+      - name: Validate fixture and exact candidates
+        env:
+          ACTIONS_REF: ${{ inputs.actions-ref }}
+          NPM_REF: ${{ inputs.action-ref }}
+          RC_TAG: ${{ inputs.rc-tag }}
+          STABLE_TAG: ${{ inputs.stable-tag }}
+        run: python3 scripts/app-free.py validate
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: releaseway/actions
+          ref: ${{ inputs.actions-ref }}
+          path: release-action
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: releaseway/npm-actions
+          ref: ${{ inputs.action-ref }}
+          path: npm-action
+          persist-credentials: false
+      - name: Verify candidate checkout identities before writes
+        env:
+          ACTIONS_REF: ${{ inputs.actions-ref }}
+          NPM_REF: ${{ inputs.action-ref }}
+        run: |-
+          test "$(git -C release-action rev-parse HEAD)" = "$ACTIONS_REF"
+          test "$(git -C npm-action rev-parse HEAD)" = "$NPM_REF"
+      - id: rc-plan
+        if: ${{ inputs.rc-tag == '' }}
+        uses: ./release-action/prepare
+        with:
+          mode: plan
+          release-config: .github/app-free.yml
+          prerelease-id: rc
+          plan-path: ${{ format('{0}/rc-plan.json', runner.temp) }}
+      - id: rc-resolve
+        if: ${{ inputs.rc-tag != '' }}
+        uses: ./release-action/prepare
+        with:
+          mode: resolve
+          tag: ${{ inputs.rc-tag }}
+          commit: ${{ github.sha }}
+          allow-prerelease: "true"
+          tag-prefix: app-free-v
+      - name: Build exact rc assets
+        env:
+          VERSION: ${{ steps.rc-plan.outputs.version || steps.rc-resolve.outputs.version
+            }}
+          DEST: ${{ format('{0}/app-free-rc', runner.temp) }}
+        run: python3 scripts/app-free.py build "$VERSION" "$DEST" native
+      - id: rc-bind
+        if: ${{ inputs.rc-tag == '' }}
+        uses: ./release-action/prepare
+        with:
+          mode: resume
+          release-config: .github/app-free.yml
+          plan-path: ${{ format('{0}/rc-plan.json', runner.temp) }}
+      - id: rc-release
+        uses: ./release-action
+        with:
+          tag: ${{ steps.rc-plan.outputs.tag || steps.rc-resolve.outputs.tag }}
+          commit: ${{ github.sha }}
+          assets: ${{ format('{0}/app-free-rc/*', runner.temp) }}
+          notes: none
+          prerelease: "true"
+          latest: "false"
+      - id: stable-plan
+        if: ${{ inputs.stable-tag == '' }}
+        uses: ./release-action/prepare
+        with:
+          mode: plan
+          release-config: .github/app-free.yml
+          prerelease-id: ""
+          plan-path: ${{ format('{0}/stable-plan.json', runner.temp) }}
+      - id: stable-resolve
+        if: ${{ inputs.stable-tag != '' }}
+        uses: ./release-action/prepare
+        with:
+          mode: resolve
+          tag: ${{ inputs.stable-tag }}
+          commit: ${{ github.sha }}
+          allow-prerelease: "false"
+          tag-prefix: app-free-v
+      - name: Build exact stable assets
+        env:
+          VERSION: ${{ steps.stable-plan.outputs.version ||
+            steps.stable-resolve.outputs.version }}
+          DEST: ${{ format('{0}/app-free-stable', runner.temp) }}
+        run: python3 scripts/app-free.py build "$VERSION" "$DEST" native
+      - id: stable-bind
+        if: ${{ inputs.stable-tag == '' }}
+        uses: ./release-action/prepare
+        with:
+          mode: resume
+          release-config: .github/app-free.yml
+          plan-path: ${{ format('{0}/stable-plan.json', runner.temp) }}
+      - id: stable-release
+        uses: ./release-action
+        with:
+          tag: ${{ steps.stable-plan.outputs.tag || steps.stable-resolve.outputs.tag }}
+          commit: ${{ github.sha }}
+          assets: ${{ format('{0}/app-free-stable/*', runner.temp) }}
+          notes: none
+          prerelease: "false"
+          latest: "false"
+      - name: Prepare fixture-only npm metadata after clean-source tag creation
+        run: python3 scripts/app-free.py package
+      - id: rc-npm
+        uses: ./npm-action
+        with:
+          release-tag: ${{ steps.rc-plan.outputs.tag || steps.rc-resolve.outputs.tag }}
+      - id: stable-npm
+        uses: ./npm-action
+        with:
+          release-tag: ${{ steps.stable-plan.outputs.tag ||
+            steps.stable-resolve.outputs.tag }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "22"
+      - name: Install both versions and run native commands on Node 22
+        env:
+          RC_VERSION: ${{ steps.rc-plan.outputs.version ||
+            steps.rc-resolve.outputs.version }}
+          STABLE_VERSION: ${{ steps.stable-plan.outputs.version ||
+            steps.stable-resolve.outputs.version }}
+          RC_REPORT: ${{ steps.rc-npm.outputs.report-path }}
+          STABLE_REPORT: ${{ steps.stable-npm.outputs.report-path }}
+        run: bash scripts/app-free-consumer.sh
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "24"
+      - name: Install both versions and run native commands on Node 24
+        env:
+          RC_VERSION: ${{ steps.rc-plan.outputs.version ||
+            steps.rc-resolve.outputs.version }}
+          STABLE_VERSION: ${{ steps.stable-plan.outputs.version ||
+            steps.stable-resolve.outputs.version }}
+          RC_REPORT: ${{ steps.rc-npm.outputs.report-path }}
+          STABLE_REPORT: ${{ steps.stable-npm.outputs.report-path }}
+        run: bash scripts/app-free-consumer.sh
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "26"
+      - name: Install both versions and run native commands on Node 26
+        env:
+          RC_VERSION: ${{ steps.rc-plan.outputs.version ||
+            steps.rc-resolve.outputs.version }}
+          STABLE_VERSION: ${{ steps.stable-plan.outputs.version ||
+            steps.stable-resolve.outputs.version }}
+          RC_REPORT: ${{ steps.rc-npm.outputs.report-path }}
+          STABLE_REPORT: ${{ steps.stable-npm.outputs.report-path }}
+        run: bash scripts/app-free-consumer.sh
+      - name: Bind current-attempt evidence to real results
+        env:
+          ACTIONS_REF: ${{ inputs.actions-ref }}
+          NPM_REF: ${{ inputs.action-ref }}
+          RC_TAG: ${{ steps.rc-plan.outputs.tag || steps.rc-resolve.outputs.tag }}
+          RC_VERSION: ${{ steps.rc-plan.outputs.version ||
+            steps.rc-resolve.outputs.version }}
+          RC_PACKAGES: ${{ steps.rc-npm.outputs.packages }}
+          RC_REPORT: ${{ steps.rc-npm.outputs.report-path }}
+          STABLE_TAG: ${{ steps.stable-plan.outputs.tag ||
+            steps.stable-resolve.outputs.tag }}
+          STABLE_VERSION: ${{ steps.stable-plan.outputs.version ||
+            steps.stable-resolve.outputs.version }}
+          STABLE_PACKAGES: ${{ steps.stable-npm.outputs.packages }}
+          STABLE_REPORT: ${{ steps.stable-npm.outputs.report-path }}
+        run: python3 scripts/app-free.py collect npm
+      - id: evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: app-free-acceptance-${{ github.run_attempt }}
+          path: app-free-acceptance.json
+          if-no-files-found: error
+          retention-days: 30
+    if: ${{ inputs.app-free }}

@@ -100,3 +100,29 @@ a later rerun that initially sees the version public returns lookup state.
 
 Local contracts: `python3 test/contracts.py`. CI also checks shell syntax/workflows.
 Public OIDC acceptance requires the Trusted Publisher connections described above.
+
+## App-free rc/stable acceptance
+
+Keep the registered caller `direct.yml`. Its new `app-free` input defaults to false,
+so the existing native acceptance remains unchanged. With `app-free=true`, supply
+both full candidate SHAs: `actions-ref` for version/tag/Release operations and the
+existing `action-ref` for npm-actions. The workflow creates rc and stable tags on
+the same clean source before preparing fixture-only package metadata, then selects
+each tag explicitly for npm publication. Both native packages are installed with
+scripts disabled and executed on Node 22, 24 and 26; lockfile integrity is compared
+with the candidate's frozen plan.
+
+The namespace is `app-free-v`, initial version is `0.0.100`, and npm channels are
+`app-free-rc` / `app-free-stable`. Existing fixture channels and workflows are
+preserved. Normal source-tag history calculates subsequent versions. No new GitHub
+App, PAT or npm publish token is required; the caller's existing Trusted Publisher
+must allow direct publication. Already-public versions do not prove fresh candidate
+packaging and therefore cannot satisfy this readiness artifact. A dedicated rerun
+using explicit `rc-tag` and `stable-tag` can reconcile remote results, but its skip
+results do not replace the original fresh-publication evidence.
+
+Evidence artifact: `app-free-acceptance-<run_attempt>`. The combined read-only checker
+in actions/scripts/verify-app-free-evidence.py also requires current legacy notes,
+stage and native runs, exact candidate push CI, and the release fixture's complete
+tap/Pages evidence. It rejects stale attempts, missing matrix entries and substituted
+source/candidate identities. Nothing in the local tests marks live readiness passed.
