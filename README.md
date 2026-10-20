@@ -6,7 +6,7 @@ dependencies with `pnpm install --frozen-lockfile`.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, default to the verified `releaseway/npm-actions v0.6.0` release, verify the checked-out SHA and run `./npm-action`.
+The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, default to the verified `releaseway/npm-actions v0.7.0` release, verify the checked-out SHA and run `./npm-action`.
 
 ## Result contract
 

@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: 3972d333a5651cc04ceed6975ef5b01409052289 # v0.6.0
+        default: 614f72ae0c6482f87a1f68f8222e42da0b2b82cb # v0.7.0
         type: string
       version-source:
         description: Resolve fixture version from package metadata or npm-fixture-v tag
@@ -84,7 +84,7 @@ jobs:
       - id: release
         name: Plan the next fixture release
         if: inputs.prepare-release
-        uses: releaseway/actions/prepare@804562f2eb9d7662810298835f7339bd6f26fcfa # app-free candidate
+        uses: releaseway/actions/prepare@804562f2eb9d7662810298835f7339bd6f26fcfa # v0.6.0
         with:
           mode: plan
           prerelease-id: fixture
@@ -98,7 +98,7 @@ jobs:
 
       - name: Execute the verified release plan
         if: inputs.prepare-release
-        uses: releaseway/actions/prepare@804562f2eb9d7662810298835f7339bd6f26fcfa # app-free candidate
+        uses: releaseway/actions/prepare@804562f2eb9d7662810298835f7339bd6f26fcfa # v0.6.0
         with:
           mode: resume
           plan-path: ${{ steps.release.outputs.plan-path }}
