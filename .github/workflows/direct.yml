@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: b9b00e1a5e5d4e055d34e4daa663909e4d65e21c # v0.7.1 candidate
+        default: b9b00e1a5e5d4e055d34e4daa663909e4d65e21c # v0.7.1
         type: string
       command-aliases:
         description: Verify additional command names from a newly published alias fixture
@@ -116,7 +116,7 @@ jobs:
 
       - name: Bind native release tag
         if: inputs.expected-state == 'published'
-        uses: releaseway/actions/prepare@804562f2eb9d7662810298835f7339bd6f26fcfa # v0.6.0
+        uses: releaseway/actions/prepare@2abdf26c6f01c1e49da4ba5d85253847fe721fd9 # v0.6.3
         with:
           mode: tag
           tag: ${{ steps.native.outputs.tag }}
@@ -124,7 +124,7 @@ jobs:
 
       - name: Publish or resume immutable native release
         if: inputs.expected-state == 'published'
-        uses: releaseway/actions@804562f2eb9d7662810298835f7339bd6f26fcfa # v0.6.0
+        uses: releaseway/actions@2abdf26c6f01c1e49da4ba5d85253847fe721fd9 # v0.6.3
         with:
           tag: ${{ steps.native.outputs.tag }}
           commit: ${{ github.sha }}
