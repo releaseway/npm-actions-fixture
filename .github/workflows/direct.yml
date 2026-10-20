@@ -11,7 +11,7 @@ on:
       action-ref:
         description: Full releaseway/npm-actions candidate SHA; stable pin by default
         required: true
-        default: 614f72ae0c6482f87a1f68f8222e42da0b2b82cb # v0.7.0
+        default: b9b00e1a5e5d4e055d34e4daa663909e4d65e21c # v0.7.1 candidate
         type: string
       command-aliases:
         description: Verify additional command names from a newly published alias fixture
