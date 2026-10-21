@@ -1,12 +1,12 @@
 # @releaseway/npm-actions-fixture
 
 Permanent integration fixture for releaseway/npm-actions. Development and consumer
-installation checks use pnpm 12.14.0, pinned in `package.json`. Install verifier
-dependencies with `pnpm install --frozen-lockfile`.
+installation checks use the pnpm version pinned in `package.json`. Install verifier
+dependencies with `corepack pnpm install --frozen-lockfile`.
 
 This package exercises real npm registry and GitHub Release behavior: registry-first version selection, Trusted Publishing OIDC, staged submissions, and native installation and execution. It is not intended for application dependencies or production use.
 
-The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, default to the verified `releaseway/npm-actions v0.7.1` release, verify the checked-out SHA and run `./npm-action`.
+The committed package remains an ordinary non-native fixture. Fixture-specific native bin metadata and the legacy package-json version scenario are prepared locally; tag-derived scenarios preserve the source version. Publication channels are declared as stable `latest` and prerelease `next` in Releaseway policy, without rewriting `publishConfig.tag`. Both workflows accept a full `action-ref` SHA, verify the checked-out SHA and run `./npm-action`. Read each workflow's dispatch defaults at the tested fixture commit for its selected automation SHA and historical version.
 
 ## Result contract
 
@@ -31,7 +31,7 @@ The bootstrap credential is no longer part of the fixture flow.
 
 For the complete preparation/publication flow, dispatch `publish.yml` with
 `prepare-release=true`, `version-source=git-tag`, `expected-state=staged`, and the
-planned `fixture-version` (most recently `0.0.12-fixture.1`; use the planner result for the next run). The committed release and
+planned `fixture-version` from the planner result. The committed release and
 npm policies select `prepared-npm-v` tags and `next`. Releaseway plans the version,
 the fixture checks that expectation, then Releaseway resumes the saved plan and
 atomically pushes the marker commit and tag. npm-actions receives the prepared
@@ -41,7 +41,7 @@ Evidence retains the workflow source SHA and separately records the prepared SHA
 
 `publish.yml` keeps the committed Releaseway policy at its staged default. It accepts `fixture-version` in the form `0.0.N-fixture.M` and `expected-state` as either `staged` or `already-published`.
 
-The defaults use `0.0.5-fixture.0` with `already-published` to exercise version lookup without a new submission. To exercise actual staged publication, choose a fresh fixture version and `expected-state=staged`. Approval remains a maintainer operation. A pending staged version is not an already-public version, and a conflicting submission is expected to fail.
+The workflow defaults use a historical version with `already-published` to exercise version lookup without a new submission. To exercise actual staged publication, choose a fresh fixture version and `expected-state=staged`. Approval remains a maintainer operation. A pending staged version is not an already-public version, and a conflicting submission is expected to fail.
 
 ## Direct native fixture
 
@@ -52,7 +52,7 @@ The defaults use `0.0.5-fixture.0` with `already-published` to exercise version 
 - Workflow filename: `direct.yml`
 - Allowed action: enable `Allow npm publish`
 
-The inputs default to `fixture-version=0.0.13-native.0` with `command-aliases=true` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
+The defaults select a historical native version with `command-aliases=true` and `expected-state=already-published`. For this scenario the workflow skips Release creation and source-commit comparison, invokes npm-actions to verify the version is already public, then installs and executes the published CLI. It may run from a later source commit than the original Release. It does not republish the historical package or test a newly generated runtime.
 
 To publish a new native fixture, select a fresh `0.0.N-native.M` version and `expected-state=published`. Repository release immutability must be enabled. Product steps build the deterministic Linux x64 asset. `releaseway/actions/prepare` binds the same-commit `native-v<version>` tag and `releaseway/actions` publishes or resumes its immutable prerelease with verified asset digests, before npm-actions publishes to `next`. The action prepares only an unpublished candidate and confirms its exact SHA-512 in the live registry.
 
