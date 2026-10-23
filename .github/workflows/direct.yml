@@ -3,6 +3,11 @@ name: Publish native fixture directly
 on:
   workflow_dispatch:
     inputs:
+      prepacked-version:
+        description: Optional fresh ordinary 0.0.N-prepacked.M version for source-bound tarball acceptance
+        required: false
+        default: ""
+        type: string
       fixture-version:
         description: Native fixture version to publish or reconcile
         required: true
@@ -414,3 +419,116 @@ jobs:
           if-no-files-found: error
           retention-days: 30
     if: ${{ inputs.app-free }}
+
+  prepacked-build:
+    if: ${{ inputs.prepacked-version != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      ACTION_REF: ${{ inputs.action-ref }}
+      FIXTURE_VERSION: ${{ inputs.fixture-version }}
+      PREPACKED_VERSION: ${{ inputs.prepacked-version }}
+      PREPACKED_MODE: direct
+    outputs:
+      artifact-id: ${{ steps.bundle.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Build, install and verify the actual producer tarball
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/prepacked-bundle
+        run: python3 scripts/prepacked.py build
+      - id: bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: prepacked-bundle-direct-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prepacked-bundle
+          if-no-files-found: error
+          retention-days: 30
+
+  prepacked-publish:
+    needs: prepacked-build
+    if: ${{ inputs.prepacked-version != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ACTION_REF: ${{ inputs.action-ref }}
+      FIXTURE_VERSION: ${{ inputs.fixture-version }}
+      PREPACKED_VERSION: ${{ inputs.prepacked-version }}
+      PREPACKED_MODE: direct
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: releaseway/npm-actions
+          ref: ${{ inputs.action-ref }}
+          path: npm-action
+          persist-credentials: false
+      - name: Verify checked-out candidate identity
+        run: test "$(git -C npm-action rev-parse HEAD)" = "${ACTION_REF,,}"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Prepare the same ordinary package selection
+        run: |
+          echo "BUNDLE_DIR=$RUNNER_TEMP/prepacked-bundle" >> "$GITHUB_ENV"
+          echo "EVIDENCE_DIR=$RUNNER_TEMP/prepacked-evidence" >> "$GITHUB_ENV"
+          python3 scripts/prepacked.py prepare
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.prepacked-build.outputs.artifact-id }}
+          path: ${{ runner.temp }}/prepacked-bundle
+          merge-multiple: true
+      - name: Require a fresh version and prepare negative SRI
+        run: |
+          python3 scripts/verify-prepacked.py absent
+          python3 scripts/prepacked.py bad
+      - id: negative
+        continue-on-error: true
+        uses: ./npm-action
+        with:
+          artifacts-manifest: ${{ runner.temp }}/prepacked-bundle/wrong.json
+      - name: Require negative preflight failure with no public version
+        env:
+          NEGATIVE_OUTCOME: ${{ steps.negative.outcome }}
+        run: |
+          test "$NEGATIVE_OUTCOME" = failure
+          python3 scripts/verify-prepacked.py absent
+      - id: prepacked
+        uses: ./npm-action
+        with:
+          artifacts-manifest: ${{ runner.temp }}/prepacked-bundle/artifacts.json
+      - name: Remove the published local tarball
+        if: env.PREPACKED_MODE == 'direct'
+        run: python3 -c "import os,pathlib; [p.unlink() for p in pathlib.Path(os.environ['BUNDLE_DIR']).glob('*.tgz')]"
+      - id: retry
+        if: env.PREPACKED_MODE == 'direct'
+        uses: ./npm-action
+        with:
+          artifacts-manifest: ${{ runner.temp }}/prepacked-bundle/artifacts.json
+      - name: Verify and preserve prepacked evidence
+        env:
+          PACKAGES: ${{ steps.prepacked.outputs.packages }}
+          ARTIFACT_REPORT: ${{ steps.prepacked.outputs.artifact-report-path }}
+          NEGATIVE_REPORT: ${{ steps.negative.outputs.artifact-report-path }}
+          RETRY_PACKAGES: ${{ steps.retry.outputs.packages }}
+          RETRY_REPORT: ${{ steps.retry.outputs.artifact-report-path }}
+          SOURCE_ARTIFACT_ID: ${{ needs.prepacked-build.outputs.artifact-id }}
+          WORKFLOW_FILE: direct.yml
+        run: python3 scripts/verify-prepacked.py verify
+      - name: Upload prepacked acceptance evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: prepacked-acceptance-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prepacked-evidence
+          retention-days: 30
+          if-no-files-found: error

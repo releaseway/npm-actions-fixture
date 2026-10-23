@@ -19,6 +19,6 @@
     "yaml": "2.9.1"
   },
   "scripts": {
-    "test": "python3 test/contracts.py && python3 test/app-free.py && node --test test/*.test.mjs"
+    "test": "python3 test/contracts.py && python3 test/app-free.py && python3 test/prepacked.py && node --test test/*.test.mjs"
   }
 }

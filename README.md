@@ -34,6 +34,20 @@ state.
 
 ## Trusted Publishing
 
+Both existing workflows also accept an optional `prepacked-version` in the form
+`0.0.N-prepacked.M`. This adds an ordinary-package build/consumer-verification job
+and a separate publisher job using the same package and Trusted Publisher workflow
+identity. Existing native direct and ordinary staged acceptance jobs remain intact.
+Use distinct fresh prepacked versions for direct and stage runs.
+
+The build job seals one tarball and its source/SHA-512 manifest into a bundle. The
+publish job downloads its exact artifact ID, checks wrong-SRI rejection before
+publication, then publishes that archive. Direct acceptance also deletes the
+local tarball and checks a verified already-public retry. The separate
+`prepacked-acceptance-<attempt>` artifact contains its receipt, source manifest and
+verification reports. Existing `releaseway-acceptance-<attempt>` receipts keep
+their original schemas and meanings. Stage acceptance never approves a version.
+
 The package identity is already bootstrapped. Configure npm Trusted Publishing for the staged workflow:
 
 - GitHub organization: `releaseway`
