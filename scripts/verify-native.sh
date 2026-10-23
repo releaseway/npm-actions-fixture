@@ -9,9 +9,7 @@ esac
 consumer="$RUNNER_TEMP/native-consumer"
 mkdir -p "$consumer"
 printf '%s\n' '{"private":true}' >"$consumer/package.json"
-pnpm --dir "$consumer" add --ignore-scripts \
-  --registry=https://registry.npmjs.org/ \
-  "@releaseway/npm-actions-fixture@$FIXTURE_VERSION"
+bash scripts/install-native-fixture.sh "$consumer"
 
 if [ -n "${EXPECTED_INTEGRITY:-}" ]; then
   node scripts/verify-installed-integrity.mjs "$consumer/pnpm-lock.yaml" "$FIXTURE_VERSION" "$EXPECTED_INTEGRITY"
